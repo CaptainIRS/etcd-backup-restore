@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gardener/etcd-backup-restore/pkg/errors"
@@ -32,11 +31,8 @@ import (
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
 	"go.etcd.io/etcd/etcdserver/etcdserverpb"
 	"go.etcd.io/etcd/pkg/types"
-	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	fake "sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -435,42 +431,6 @@ func IsBackupBucketEmpty(snapStoreConfig *brtypes.SnapstoreConfig, logger *logru
 		return false
 	}
 	return true
-}
-
-// GetInitialClusterStateIfScaleup checks if it is the Scale-up scenario and returns the cluster state either `new` or `existing`.
-func GetInitialClusterStateIfScaleup(ctx context.Context, logger logrus.Entry, clientSet client.Client, podName string, podNS string) (*string, error) {
-	// Read etcd statefulset to check annotation or updated replicas to toggle `initial-cluster-state`
-	etcdSts, err := GetStatefulSet(ctx, clientSet, podNS, podName)
-	if err != nil {
-		logger.Errorf("unable to fetch statefulset {namespace: %s, name: %s} %v", podNS, podName[:strings.LastIndex(podName, "-")], err)
-		return nil, err
-	}
-
-	if IsAnnotationPresent(etcdSts, ScaledToMultiNodeAnnotationKey) {
-		return ptr.To(ClusterStateExisting), nil
-	}
-
-	if *etcdSts.Spec.Replicas > 1 && *etcdSts.Spec.Replicas > etcdSts.Status.UpdatedReplicas {
-		return ptr.To(ClusterStateExisting), nil
-	}
-	return nil, nil
-}
-
-// IsAnnotationPresent checks the presence of given annotation in a given statefulset.
-func IsAnnotationPresent(sts *appsv1.StatefulSet, annotation string) bool {
-	return metav1.HasAnnotation(sts.ObjectMeta, annotation)
-}
-
-// GetStatefulSet gets the StatefulSet with the name podName in podNamespace namespace. It will return if there is any error or the StatefulSet is not found.
-func GetStatefulSet(ctx context.Context, clientSet client.Client, podNamespace string, podName string) (*appsv1.StatefulSet, error) {
-	curSts := &appsv1.StatefulSet{}
-	if err := clientSet.Get(ctx, client.ObjectKey{
-		Namespace: podNamespace,
-		Name:      podName[:strings.LastIndex(podName, "-")],
-	}, curSts); err != nil {
-		return nil, err
-	}
-	return curSts, nil
 }
 
 // DoPromoteMember promotes a given learner to a voting member.

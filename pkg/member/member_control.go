@@ -23,9 +23,7 @@ import (
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
 	"go.etcd.io/etcd/etcdserver/etcdserverpb"
-	v1 "k8s.io/api/coordination/v1"
 	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -50,13 +48,13 @@ type Control interface {
 	AddMemberAsLearner(context.Context) error
 
 	// IsClusterScaledUp determines whether a etcd cluster is getting scale-up or not.
-	IsClusterScaledUp(context.Context, client.Client) (bool, error)
+	IsClusterScaledUp(context.Context) (bool, error)
 
 	// IsMemberInCluster checks is the current members peer URL is already part of the etcd cluster.
 	IsMemberInCluster(context.Context) (bool, error)
 
 	// WasMemberInCluster checks whether current members was part of the etcd cluster or not.
-	WasMemberInCluster(context.Context, client.Client) bool
+	WasMemberInCluster(context.Context) bool
 
 	// PromoteMember promotes an etcd member from a learner to a voting member of the cluster.
 	// This will succeed if and only if learner is in a healthy state and the learner is in sync with leader.
@@ -315,7 +313,7 @@ func (m *memberControl) IsLearnerPresent(ctx context.Context) (bool, error) {
 }
 
 // IsClusterScaledUp determines whether a etcd cluster is getting scale-up or not and returns a boolean
-func (m *memberControl) IsClusterScaledUp(ctx context.Context, clientSet client.Client) (bool, error) {
+func (m *memberControl) IsClusterScaledUp(ctx context.Context) (bool, error) {
 	m.logger.Info("Checking whether etcd cluster is marked for scale-up")
 
 	// First, try to determine scale-up case by checking whether member is already part of cluster or not.
@@ -328,14 +326,6 @@ func (m *memberControl) IsClusterScaledUp(ctx context.Context, clientSet client.
 	}
 	m.logger.Errorf("unable to check presence of member in cluster: %v", err)
 
-	etcdsts, err := miscellaneous.GetStatefulSet(ctx, clientSet, m.podNamespace, m.podName)
-	if err != nil {
-		m.logger.Errorf("unable to fetch etcd statefulset: %v", err)
-	} else {
-		if miscellaneous.IsAnnotationPresent(etcdsts, miscellaneous.ScaledToMultiNodeAnnotationKey) {
-			return true, nil
-		}
-	}
 	return false, nil
 }
 
@@ -367,27 +357,14 @@ func (m *memberControl) GetPeerURLs(ctx context.Context, closer etcdClient.Clust
 }
 
 // WasMemberInCluster checks whether etcd member was part of etcd cluster.
-func (m *memberControl) WasMemberInCluster(ctx context.Context, clientSet client.Client) bool {
+func (m *memberControl) WasMemberInCluster(ctx context.Context) bool {
 	etcdMemberPresent, err := m.IsMemberInCluster(ctx)
 	if err == nil {
 		return etcdMemberPresent
 	}
 	m.logger.Errorf("unable to check member presence via api call: %v", err)
 
-	m.logger.Info("fetching the member lease associated with etcd member")
-	memberLease := &v1.Lease{}
-	if err := clientSet.Get(ctx, client.ObjectKey{
-		Namespace: m.podNamespace,
-		Name:      m.podName,
-	}, memberLease); err != nil {
-		m.logger.Errorf("couldn't fetch member lease while checking if the member was part of the cluster: %v", err)
-		return false
-	}
-
-	if memberLease.Spec.HolderIdentity == nil {
-		return false
-	}
-	return true
+	return false
 }
 
 // AddLearnerWithRetry add a new member as a learner with exponential backoff.
