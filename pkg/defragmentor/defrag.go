@@ -8,8 +8,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gardener/etcd-backup-restore/pkg/etcdutil"
-	"github.com/gardener/etcd-backup-restore/pkg/miscellaneous"
+	"github.com/gardener/etcd-backup-restore/pkg/maintenance"
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 
 	cron "github.com/robfig/cron/v3"
@@ -38,20 +37,6 @@ func NewDefragmentorJob(ctx context.Context, etcdConnectionConfig *brtypes.EtcdC
 }
 
 func (d *defragmentorJob) Run() {
-	clientFactory := etcdutil.NewFactory(*d.etcdConnectionConfig)
-
-	clientMaintenance, err := clientFactory.NewMaintenance()
-	if err != nil {
-		d.logger.Warnf("failed to create etcd maintenance client")
-	}
-	defer clientMaintenance.Close()
-
-	client, err := clientFactory.NewCluster()
-	if err != nil {
-		d.logger.Warnf("failed to create etcd cluster client")
-	}
-	defer client.Close()
-
 	ticker := time.NewTicker(brtypes.DefragRetryPeriod)
 	defer ticker.Stop()
 
@@ -61,33 +46,25 @@ waitLoop:
 		case <-d.ctx.Done():
 			return
 		case <-ticker.C:
-			etcdEndpoints, err := miscellaneous.GetAllEtcdEndpoints(d.ctx, client, d.etcdConnectionConfig, d.logger)
-			if err != nil {
-				d.logger.Errorf("failed to get endpoints of all members of etcd cluster: %v", err)
-				continue
-			}
-			d.logger.Infof("All etcd members endPoints: %v", etcdEndpoints)
-
-			isClusterHealthy, err := miscellaneous.IsEtcdClusterHealthy(d.ctx, clientMaintenance, d.etcdConnectionConfig, etcdEndpoints, d.logger)
-			if err != nil {
-				d.logger.Errorf("failed to defrag as all members of etcd cluster are not healthy: %v", err)
-				continue
-			}
-
-			if isClusterHealthy {
-				d.logger.Infof("Starting the defragmentation as all members of etcd cluster are in healthy state")
-				err = etcdutil.DefragmentData(d.ctx, clientMaintenance, client, etcdEndpoints, d.etcdConnectionConfig.DefragTimeout.Duration, d.logger)
-				if err != nil {
-					d.logger.Warnf("failed to defrag data with error: %v", err)
-					continue
-				}
+			// Attempt defragmentation using consolidated maintenance logic with per-run client creation.
+			onSuccess := func(ctx context.Context) error {
 				if d.callback != nil {
-					if _, err = d.callback(d.ctx, false); err != nil {
+					if _, err := d.callback(ctx, false); err != nil {
 						d.logger.Warnf("defragmentation callback failed with error: %v", err)
+						return err
 					}
 				}
-				break waitLoop
+				return nil
 			}
+
+			d.logger.Infof("Starting defragmentation attempt...")
+			if err := maintenance.DefragmentCluster(d.ctx, d.etcdConnectionConfig, d.logger, onSuccess); err != nil {
+				d.logger.Warnf("failed to defragment data with error: %v", err)
+				continue
+			}
+
+			// Success; exit wait loop.
+			break waitLoop
 		}
 	}
 }

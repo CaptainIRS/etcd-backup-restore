@@ -318,3 +318,39 @@ func (c *copierOptions) complete() {
 	c.snapstoreConfig.Complete()
 	c.sourceSnapStoreConfig.MergeWith(c.snapstoreConfig)
 }
+
+type maintenanceCompactOptions struct {
+	etcdConnectionConfig *brtypes.EtcdConnectionConfig
+}
+
+func newMaintenanceCompactOptions() *maintenanceCompactOptions {
+	return &maintenanceCompactOptions{
+		etcdConnectionConfig: brtypes.NewEtcdConnectionConfig(),
+	}
+}
+
+func (o *maintenanceCompactOptions) addFlags(fs *flag.FlagSet) {
+	o.etcdConnectionConfig.AddFlags(fs)
+}
+
+func (o *maintenanceCompactOptions) validate() error {
+	return o.etcdConnectionConfig.Validate()
+}
+
+type maintenanceDefragOptions struct {
+	etcdConnectionConfig *brtypes.EtcdConnectionConfig
+}
+
+func newMaintenanceDefragOptions() *maintenanceDefragOptions {
+	return &maintenanceDefragOptions{
+		etcdConnectionConfig: brtypes.NewEtcdConnectionConfig(),
+	}
+}
+
+func (o *maintenanceDefragOptions) addFlags(fs *flag.FlagSet) {
+	o.etcdConnectionConfig.AddFlags(fs)
+}
+
+func (o *maintenanceDefragOptions) validate() error {
+	return o.etcdConnectionConfig.Validate()
+}
