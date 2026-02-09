@@ -23,9 +23,7 @@ import (
 	"go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/api/v3/v3rpc/rpctypes"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	v1 "k8s.io/api/coordination/v1"
 	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -56,7 +54,7 @@ type Control interface {
 	IsMemberInCluster(context.Context) (bool, error)
 
 	// WasMemberInCluster checks whether current members was part of the etcd cluster or not.
-	WasMemberInCluster(context.Context, client.Client) bool
+	WasMemberInCluster(context.Context) bool
 
 	// PromoteMember promotes an etcd member from a learner to a voting member of the cluster.
 	// This will succeed if and only if learner is in a healthy state and the learner is in sync with leader.
@@ -360,27 +358,17 @@ func (m *memberControl) GetPeerURLs(ctx context.Context, closer etcdClient.Clust
 }
 
 // WasMemberInCluster checks whether etcd member was part of etcd cluster.
-func (m *memberControl) WasMemberInCluster(ctx context.Context, clientSet client.Client) bool {
+func (m *memberControl) WasMemberInCluster(ctx context.Context) bool {
 	etcdMemberPresent, err := m.IsMemberInCluster(ctx)
 	if err == nil {
 		return etcdMemberPresent
 	}
 	m.logger.Errorf("unable to check member presence via api call: %v", err)
 
-	m.logger.Info("fetching the member lease associated with etcd member")
-	memberLease := &v1.Lease{}
-	if err := clientSet.Get(ctx, client.ObjectKey{
-		Namespace: m.podNamespace,
-		Name:      m.podName,
-	}, memberLease); err != nil {
-		m.logger.Errorf("couldn't fetch member lease while checking if the member was part of the cluster: %v", err)
-		return false
-	}
+	// This comment is a placeholder for logic that handles unhibernation for hosted-control-plane scenarios.
+	// SSC should be unaffected regardless of how the logic is implemented.
 
-	if memberLease.Spec.HolderIdentity == nil {
-		return false
-	}
-	return true
+	return false
 }
 
 // AddLearnerWithRetry add a new member as a learner with exponential backoff.

@@ -49,15 +49,10 @@ func (e *EtcdInitializer) Initialize(mode validator.Mode) error {
 
 	// Etcd cluster scale-up case
 	if miscellaneous.IsMultiNode(logger) {
-		clientSet, err := miscellaneous.GetKubernetesClientSetOrError()
-		if err != nil {
-			logger.Fatalf("failed to create clientset, %v", err)
-		}
-
 		m := member.NewMemberControl(e.Config.EtcdConnectionConfig)
 
 		// check heartbeat of etcd member
-		if memberHeartbeatPresent = m.WasMemberInCluster(ctx, clientSet); memberHeartbeatPresent {
+		if memberHeartbeatPresent = m.WasMemberInCluster(ctx); memberHeartbeatPresent {
 			logger.Info("member found to be already a part of the cluster")
 			logger.Info("skipping the scale-up check")
 		} else {
