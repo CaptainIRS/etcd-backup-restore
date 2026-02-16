@@ -35,6 +35,8 @@ const (
 	NoLeaderState uint64 = 0
 )
 
+var InjectFailure = false
+
 // LeaderElector holds the all configuration necessary to elect backup-restore Leader.
 type LeaderElector struct {
 	Config               *brtypes.Config
@@ -171,6 +173,11 @@ func EtcdMemberStatus(ctx context.Context, etcdConnectionConfig *brtypes.EtcdCon
 	}
 	endPoint = etcdConnectionConfig.Endpoints[0]
 
+	if InjectFailure {
+		err := fmt.Errorf("injected failure for testing purpose")
+		logger.Errorf("failed to get status of etcd endPoint: %v with error: %v", endPoint, err)
+		return false, false, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, etcdConnectionTimeout)
 	defer cancel()
 

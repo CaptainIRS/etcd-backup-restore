@@ -27,6 +27,7 @@ import (
 	etcdclient "github.com/gardener/etcd-backup-restore/pkg/etcdutil/client"
 	"github.com/gardener/etcd-backup-restore/pkg/initializer"
 	"github.com/gardener/etcd-backup-restore/pkg/initializer/validator"
+	"github.com/gardener/etcd-backup-restore/pkg/leaderelection"
 	"github.com/gardener/etcd-backup-restore/pkg/member"
 	"github.com/gardener/etcd-backup-restore/pkg/miscellaneous"
 	"github.com/gardener/etcd-backup-restore/pkg/snapshot/snapshotter"
@@ -141,6 +142,14 @@ func (h *HTTPHandler) RegisterHandler() {
 	mux.HandleFunc("/snapshot/latest", h.serveLatestSnapshotMetadata)
 	mux.HandleFunc("/config", h.serveConfig)
 	mux.HandleFunc("/healthz", h.serveHealthz)
+	mux.HandleFunc("/injectfailure/true", func(w http.ResponseWriter, r *http.Request) {
+		leaderelection.InjectFailure = true
+		w.WriteHeader(http.StatusOK)
+	})
+	mux.HandleFunc("/injectfailure/false", func(w http.ResponseWriter, r *http.Request) {
+		leaderelection.InjectFailure = false
+		w.WriteHeader(http.StatusOK)
+	})
 	mux.Handle("/metrics", promhttp.Handler())
 
 	h.server = &http.Server{

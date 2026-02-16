@@ -828,6 +828,7 @@ func (w *watchGrpcStream) serveSubstream(ws *watcherStream, resumec chan struct{
 				// shutdown from closeSubstream
 				return
 			}
+			fmt.Printf("Received watch response: %+v\n", wr)
 
 			if wr.Created {
 				if ws.initReq.retc != nil {

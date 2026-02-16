@@ -567,6 +567,7 @@ func (ssr *Snapshotter) CollectEventsSincePrevSnapshot(stopCh <-chan struct{}) (
 	metrics.SnapshotRequired.With(prometheus.Labels{metrics.LabelKind: brtypes.SnapshotKindDelta}).Set(1)
 	metrics.SnapshotRequired.With(prometheus.Labels{metrics.LabelKind: brtypes.SnapshotKindFull}).Set(1)
 
+	time.Sleep(30 * time.Second)
 	for {
 		select {
 		case wr, ok := <-ssr.watchCh:
