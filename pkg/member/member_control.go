@@ -68,6 +68,10 @@ type Control interface {
 	// RemoveMember removes the member from the etcd cluster.
 	RemoveMember(context.Context) error
 
+	// RemoveMemberByName removes a member with the specified name from the etcd cluster.
+	// If the member is not found, it returns nil (idempotent behavior).
+	RemoveMemberByName(context.Context, string) error
+
 	// IsLearnerPresent checks for the learner(non-voting) member in a cluster.
 	IsLearnerPresent(context.Context) (bool, error)
 
@@ -112,6 +116,24 @@ func NewMemberControl(etcdConnConfig *brtypes.EtcdConnectionConfig) Control {
 		configFile:    configFile,
 		podNamespace:  podNamespace,
 	}
+}
+
+// newMemberControlWithFactory returns a new memberControl with a provided factory (used for testing).
+func newMemberControlWithFactory(factory etcdClient.Factory, podName, podNamespace, configFile string) Control {
+	logger := logrus.New().WithField("actor", "member-add")
+	return &memberControl{
+		clientFactory: factory,
+		logger:        *logger,
+		podName:       podName,
+		configFile:    configFile,
+		podNamespace:  podNamespace,
+	}
+}
+
+// NewTestMemberControl creates a memberControl for testing purposes with a mocked factory.
+// This function is exported for use in tests only.
+func NewTestMemberControl(factory etcdClient.Factory, podName, podNamespace, configFile string) Control {
+	return newMemberControlWithFactory(factory, podName, podNamespace, configFile)
 }
 
 // AddMemberAsLearner add a member as a learner to the etcd cluster
@@ -292,6 +314,35 @@ func (m *memberControl) RemoveMember(ctx context.Context) error {
 
 	foundMember := findMember(memberInfo.Members, m.podName)
 	if foundMember == nil {
+		return nil
+	}
+
+	return miscellaneous.RemoveMemberFromCluster(memRemoveCtx, cli, foundMember.GetID(), &m.logger)
+}
+
+// RemoveMemberByName removes a member with the specified name from the etcd cluster.
+// If the member is not found, it returns nil (idempotent behavior).
+func (m *memberControl) RemoveMemberByName(ctx context.Context, name string) error {
+	m.logger.Infof("Removing member %s from cluster", name)
+
+	cli, err := m.clientFactory.NewCluster()
+	if err != nil {
+		return fmt.Errorf("failed to build etcd cluster client : %v", err)
+	}
+	defer cli.Close()
+
+	memRemoveCtx, memRemoveCtxCancel := context.WithTimeout(ctx, brtypes.DefaultEtcdConnectionTimeout)
+	defer memRemoveCtxCancel()
+
+	memberInfo, err := cli.MemberList(memRemoveCtx)
+	if err != nil {
+		return fmt.Errorf("error listing members: %v", err)
+	}
+
+	foundMember := findMember(memberInfo.Members, name)
+	if foundMember == nil {
+		// Member not found - idempotent behavior, return nil
+		m.logger.Infof("Member %s not found in cluster (already removed)", name)
 		return nil
 	}
 
