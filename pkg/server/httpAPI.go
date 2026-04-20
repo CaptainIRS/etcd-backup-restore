@@ -220,8 +220,8 @@ func (h *HTTPHandler) serveHealthz(rw http.ResponseWriter, _ *http.Request) {
 
 // memberRemoveResponse represents the response for member removal requests
 type memberRemoveResponse struct {
-	Removed    bool   `json:"removed"`
 	MemberName string `json:"memberName"`
+	Removed    bool   `json:"removed"`
 }
 
 // serveMemberRemove handles HTTP requests to remove a member from the etcd cluster
@@ -250,7 +250,7 @@ func (h *HTTPHandler) serveMemberRemove(rw http.ResponseWriter, req *http.Reques
 			h.Logger.Warnf("Failed to remove member %s: %v", name, err)
 		}
 		rw.WriteHeader(http.StatusInternalServerError)
-		if _, err := rw.Write([]byte(fmt.Sprintf("failed to remove member: %v", err))); err != nil {
+		if _, err := fmt.Fprintf(rw, "failed to remove member: %v", err); err != nil {
 			if h.Logger != nil {
 				h.Logger.Errorf("Unable to write error response: %v", err)
 			}
