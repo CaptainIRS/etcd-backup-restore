@@ -280,6 +280,7 @@ func (h *HTTPHandler) serveMemberRemove(rw http.ResponseWriter, req *http.Reques
 		}
 	}
 }
+
 func (h *HTTPHandler) serveInitialize(rw http.ResponseWriter, req *http.Request) {
 	h.checkAndSetSecurityHeaders(rw)
 	h.Logger.Info("Received start initialization request.")
