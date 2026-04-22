@@ -54,3 +54,23 @@ func healthCheckTest(handlerFunc http.HandlerFunc, expectedStatus int, expectedH
 	}
 	return nil
 }
+
+func TestServeMemberRemove_MissingName(t *testing.T) {
+	handler := HTTPHandler{}
+	req, err := http.NewRequest("GET", "/member/remove", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rr := httptest.NewRecorder()
+	handlerFunc := http.HandlerFunc(handler.serveMemberRemove)
+	handlerFunc.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusBadRequest {
+		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusBadRequest)
+	}
+
+	expected := "missing required query parameter: name"
+	if rr.Body.String() != expected {
+		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+	}
+}

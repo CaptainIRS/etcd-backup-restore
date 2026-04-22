@@ -140,6 +140,7 @@ func (h *HTTPHandler) RegisterHandler() {
 	mux.HandleFunc("/snapshot/latest", h.serveLatestSnapshotMetadata)
 	mux.HandleFunc("/config", h.serveConfig)
 	mux.HandleFunc("/healthz", h.serveHealthz)
+	mux.HandleFunc("/member/remove", h.serveMemberRemove)
 	mux.Handle("/metrics", promhttp.Handler())
 
 	h.server = &http.Server{
@@ -217,7 +218,69 @@ func (h *HTTPHandler) serveHealthz(rw http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-// serveInitialize starts initialization for the configured Initializer
+// memberRemoveResponse represents the response for member removal requests
+type memberRemoveResponse struct {
+	MemberName string `json:"memberName"`
+	Removed    bool   `json:"removed"`
+}
+
+// serveMemberRemove handles HTTP requests to remove a member from the etcd cluster
+func (h *HTTPHandler) serveMemberRemove(rw http.ResponseWriter, req *http.Request) {
+	h.checkAndSetSecurityHeaders(rw)
+
+	// Extract the name query parameter
+	name := req.URL.Query().Get("name")
+	if name == "" {
+		rw.WriteHeader(http.StatusBadRequest)
+		if _, err := rw.Write([]byte("missing required query parameter: name")); err != nil {
+			if h.Logger != nil {
+				h.Logger.Errorf("Unable to write error response: %v", err)
+			}
+		}
+		return
+	}
+
+	// Create member control
+	m := member.NewMemberControl(h.EtcdConnectionConfig)
+
+	// Attempt to remove the member
+	err := m.RemoveMemberByName(req.Context(), name)
+	if err != nil {
+		if h.Logger != nil {
+			h.Logger.Warnf("Failed to remove member %s: %v", name, err)
+		}
+		rw.WriteHeader(http.StatusInternalServerError)
+		if _, err := fmt.Fprintf(rw, "failed to remove member: %v", err); err != nil {
+			if h.Logger != nil {
+				h.Logger.Errorf("Unable to write error response: %v", err)
+			}
+		}
+		return
+	}
+
+	// Success case - member was removed or was already not present (idempotent)
+	response := memberRemoveResponse{
+		Removed:    true,
+		MemberName: name,
+	}
+
+	out, err := json.Marshal(response)
+	if err != nil {
+		if h.Logger != nil {
+			h.Logger.Warnf("Unable to marshal member remove response to json: %v", err)
+		}
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+	if _, err = rw.Write(out); err != nil {
+		if h.Logger != nil {
+			h.Logger.Errorf("Unable to write member remove response: %v", err)
+		}
+	}
+}
+
 func (h *HTTPHandler) serveInitialize(rw http.ResponseWriter, req *http.Request) {
 	h.checkAndSetSecurityHeaders(rw)
 	h.Logger.Info("Received start initialization request.")

@@ -219,4 +219,128 @@ auto-compaction-retention: 30m`
 			})
 		})
 	})
+
+	Describe("Remove member by name", func() {
+		var (
+			memberName = "test-member-to-remove"
+			memberID   = uint64(98765)
+		)
+
+		Context("RemoveMemberByName_Success", func() {
+			It("should remove the member from cluster when member is found", func() {
+				localCtrl := gomock.NewController(GinkgoT())
+				defer localCtrl.Finish()
+
+				factoryMock := mockfactory.NewMockFactory(localCtrl)
+				clMock := mockfactory.NewMockClusterCloser(localCtrl)
+
+				factoryMock.EXPECT().NewCluster().Return(clMock, nil)
+
+				clMock.EXPECT().MemberList(gomock.Any()).DoAndReturn(func(_ context.Context) (*clientv3.MemberListResponse, error) {
+					member1 := &etcdserverpb.Member{
+						ID:   memberID,
+						Name: memberName,
+					}
+					member2 := &etcdserverpb.Member{
+						ID:   memberID + 1,
+						Name: "other-member",
+					}
+					response := &clientv3.MemberListResponse{
+						Members: []*etcdserverpb.Member{member1, member2},
+					}
+					return response, nil
+				})
+
+				clMock.EXPECT().MemberRemove(gomock.Any(), memberID).Return(nil, nil)
+				clMock.EXPECT().Close()
+
+				// Use the testing helper to get a control interface with mocked factory
+				testMember := member.NewTestMemberControl(factoryMock, "test-pod", "default", "/tmp/etcd.conf.yaml")
+
+				err := testMember.RemoveMemberByName(context.TODO(), memberName)
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+		})
+
+		Context("RemoveMemberByName_NotFound", func() {
+			It("should return nil (idempotent) when member is not found", func() {
+				localCtrl := gomock.NewController(GinkgoT())
+				defer localCtrl.Finish()
+
+				factoryMock := mockfactory.NewMockFactory(localCtrl)
+				clMock := mockfactory.NewMockClusterCloser(localCtrl)
+
+				factoryMock.EXPECT().NewCluster().Return(clMock, nil)
+
+				clMock.EXPECT().MemberList(gomock.Any()).DoAndReturn(func(_ context.Context) (*clientv3.MemberListResponse, error) {
+					member := &etcdserverpb.Member{
+						ID:   memberID,
+						Name: "other-member",
+					}
+					response := &clientv3.MemberListResponse{
+						Members: []*etcdserverpb.Member{member},
+					}
+					return response, nil
+				})
+
+				clMock.EXPECT().Close()
+
+				testMember := member.NewTestMemberControl(factoryMock, "test-pod", "default", "/tmp/etcd.conf.yaml")
+
+				err := testMember.RemoveMemberByName(context.TODO(), "nonexistent")
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+		})
+
+		Context("RemoveMemberByName_MemberListError", func() {
+			It("should return error when MemberList fails", func() {
+				localCtrl := gomock.NewController(GinkgoT())
+				defer localCtrl.Finish()
+
+				factoryMock := mockfactory.NewMockFactory(localCtrl)
+				clMock := mockfactory.NewMockClusterCloser(localCtrl)
+
+				factoryMock.EXPECT().NewCluster().Return(clMock, nil)
+
+				clMock.EXPECT().MemberList(gomock.Any()).Return(nil, fmt.Errorf("connection error"))
+				clMock.EXPECT().Close()
+
+				testMember := member.NewTestMemberControl(factoryMock, "test-pod", "default", "/tmp/etcd.conf.yaml")
+
+				err := testMember.RemoveMemberByName(context.TODO(), memberName)
+				Expect(err).Should(HaveOccurred())
+			})
+		})
+
+		Context("RemoveMemberByName_RemoveError", func() {
+			It("should return error when MemberRemove fails", func() {
+				localCtrl := gomock.NewController(GinkgoT())
+				defer localCtrl.Finish()
+
+				factoryMock := mockfactory.NewMockFactory(localCtrl)
+				clMock := mockfactory.NewMockClusterCloser(localCtrl)
+
+				factoryMock.EXPECT().NewCluster().Return(clMock, nil)
+
+				clMock.EXPECT().MemberList(gomock.Any()).DoAndReturn(func(_ context.Context) (*clientv3.MemberListResponse, error) {
+					member := &etcdserverpb.Member{
+						ID:   memberID,
+						Name: memberName,
+					}
+					response := &clientv3.MemberListResponse{
+						Members: []*etcdserverpb.Member{member},
+					}
+					return response, nil
+				})
+
+				clMock.EXPECT().MemberRemove(gomock.Any(), memberID).Return(nil, fmt.Errorf("remove error"))
+				clMock.EXPECT().Close()
+
+				testMember := member.NewTestMemberControl(factoryMock, "test-pod", "default", "/tmp/etcd.conf.yaml")
+
+				err := testMember.RemoveMemberByName(context.TODO(), memberName)
+				Expect(err).Should(HaveOccurred())
+			})
+		})
+	})
 })
