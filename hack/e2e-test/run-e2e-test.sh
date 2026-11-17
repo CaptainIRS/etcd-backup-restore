@@ -48,16 +48,24 @@ function get_test_id() {
   echo "Test id: ${TEST_ID}"
 }
 
+function aws_cli() {
+  if [[ -f "${AWS_APPLICATION_CREDENTIALS}/insecureSkipVerify" ]]; then
+    aws --no-verify-ssl "$@"
+  else
+    aws "$@"
+  fi
+}
+
 # cleanup_aws_container deletes the container for the AWS provider
 function cleanup_aws_container() {
     echo "Cleaning up AWS infrastructure..."
     echo "Deleting test bucket..."
-    result=$(aws s3api get-bucket-location --bucket ${TEST_ID} 2>&1 || true)
+    result=$(aws_cli s3api get-bucket-location --bucket ${TEST_ID} 2>&1 || true)
     if [[ $result == *NoSuchBucket* ]]; then
       echo "Bucket doesn't exit. Might have been deleted already."
       return
     fi
-    if ! aws s3 rb s3://${TEST_ID} --force; then
+    if ! aws_cli s3 rb s3://${TEST_ID} --force; then
       echo "Failed to delete AWS test bucket."
       return 1
     fi
@@ -126,14 +134,14 @@ function setup_awscli() {
 function create_aws_container() {
     echo "Setting up AWS infrastructure..."
     echo "Creating test bucket..."
-    result=$(aws s3api get-bucket-location --bucket ${TEST_ID} 2>&1 || true)
+    result=$(aws_cli s3api get-bucket-location --bucket ${TEST_ID} 2>&1 || true)
     if [[ $result == *NoSuchBucket* ]]; then
       echo "Creating S3 bucket ${TEST_ID} in region ${AWS_DEFAULT_REGION}"
       accumulated_exit_code=0
-      aws s3api create-bucket --bucket ${TEST_ID} --region ${AWS_DEFAULT_REGION} --create-bucket-configuration LocationConstraint=${AWS_DEFAULT_REGION} --acl private || accumulated_exit_code=1
+      aws_cli s3api create-bucket --bucket ${TEST_ID} --region ${AWS_DEFAULT_REGION} --create-bucket-configuration LocationConstraint=${AWS_DEFAULT_REGION} --acl private || accumulated_exit_code=1
       # Block public access to the S3 bucket
-      aws s3api put-public-access-block --bucket ${TEST_ID} --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true" || accumulated_exit_code=1
-      # Deny non-HTTPS requests to the S3 bucket, except for localstack which is exposed on an HTTP endpoint
+      aws_cli s3api put-public-access-block --bucket ${TEST_ID} --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true" || accumulated_exit_code=1
+      # Deny non-HTTPS requests to the real S3 bucket
       if [[ -z "${EMULATOR_URL:-}" ]]; then
         aws s3api put-bucket-policy --bucket ${TEST_ID} --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Deny\",\"Principal\":\"*\",\"Action\":\"s3:*\",\"Resource\":[\"arn:aws:s3:::${TEST_ID}\",\"arn:aws:s3:::${TEST_ID}/*\"],\"Condition\":{\"Bool\":{\"aws:SecureTransport\":\"false\"},\"NumericLessThan\":{\"s3:TlsVersion\":\"1.2\"}}}]}" || accumulated_exit_code=1
       fi
@@ -164,9 +172,9 @@ For real AWS provider:
     AWS_SECRET_ACCESS_KEY   Secret key of the AWS user.
     AWS_DEFAULT_REGION      Region in which the test bucket is created.
 
-For testing with Localstack:
-    EMULATOR_URL            Host of the localstack service.
-    AWS_ENDPOINT_URL_S3     Endpoint URL of the localstack service.
+For testing with AWS Emulator:
+    EMULATOR_URL            Host of the AWS Emulator service.
+    AWS_ENDPOINT_URL_S3     Endpoint URL of the AWS Emulator service.
     AWS_ACCESS_KEY_ID       Dummy access key of the AWS user.
     AWS_SECRET_ACCESS_KEY   Dummy secret key of the AWS user.
     AWS_DEFAULT_REGION      Region in which the test bucket should be created.
@@ -174,10 +182,10 @@ EOM
     return 1
 }
 
-# setup_aws_e2e sets up the AWS infrastructure for the e2e tests including deploying localstack and/or installing the awscli
+# setup_aws_e2e sets up the AWS infrastructure for the e2e tests
 function setup_aws_e2e() {    
     if [[ -n ${EMULATOR_URL:-""} ]]; then
-      make deploy-localstack $KUBECONFIG
+      make deploy-aws-emulator KUBECONFIG="${KUBECONFIG}"
     else
       if [[ -z ${AWS_DEFAULT_REGION:-""} ]]; then
           usage_aws

@@ -48,12 +48,6 @@ Currently, the tests can be run using the following cloud providers:
 
 #### Running the e2e tests with the emulators
 
-> **_NOTE:_** Running the AWS e2e tests requires a `LOCALSTACK_AUTH_TOKEN` environment variable to be set.
-> The project has a [LocalStack for Open Source](https://localstack.cloud/open-source) license. Ask a
-> maintainer for the token, or apply for your own. Alternatively, the frozen community archive image
-> `localstack/localstack:s3-community-archive` can be used without a token, but it will not receive
-> updates or security patches.
-
 ##### On a Kind Cluster
 
 To run the e2e tests with the emulators, run the following command:
@@ -62,7 +56,7 @@ To run the e2e tests with the emulators, run the following command:
 make ci-e2e-kind PROVIDERS="{providers}"
 ```
 
-By default, when no provider is specified, the tests are run using AWS emulator i.e Localstack as storage provider. The provider can be specified as comma separated values of the cloud providers mentioned above in small case. For example, to run the tests on AWS and GCP, run the following command:
+By default, when no provider is specified, the tests use AWS Emulator as storage provider. The provider can be specified as comma separated values of the cloud providers mentioned above in small case. For example, to run the tests on AWS and GCP, run the following command:
 
 ```sh
 make ci-e2e-kind PROVIDERS="aws,gcp"
@@ -74,7 +68,7 @@ The e2e tests can also be run on any other cluster by running the following comm
 
 > **_NOTE:_** If using emulators for e2e tests, make sure to port-forward the snapstore service to the local machine before running the tests.
 
-- For AWS: `kubectl port-forward service/localstack 4566:4566`
+- For AWS: `kubectl port-forward service/aws-emulator 9297:9297`
 - For GCP: `kubectl port-forward service/fake-gcs 4443:4443 8000:8000`
 - For Azure: `kubectl port-forward service/azurite 10000:10000`
 

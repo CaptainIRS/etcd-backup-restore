@@ -109,6 +109,7 @@ backup:
   #   accessKeyID: access-key-id-with-route53-privileges
   #   endpoint: endpoint-override-for-s3 # optional
   #   s3ForcePathStyle: "true" # optional
+  #   insecureSkipVerify: "false" # optional
   #   sseCustomerKey: aes-256-sse-customer-key # optional
   #   sseCustomerAlgorithm: aes-256-sse-customer-algorithm # optional
   #   roleARN: arn:aws:iam::123456789012:role/role-name

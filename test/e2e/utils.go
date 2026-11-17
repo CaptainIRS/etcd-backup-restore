@@ -99,6 +99,7 @@ func getProvider(providerName string) (testProvider, error) {
 		emulatorURL := getEnvOrFallback(envEmulatorURL, "")
 		if emulatorURL != "" {
 			secretData["s3ForcePathStyle"] = "true"
+			secretData["insecureSkipVerify"] = "true"
 		}
 		endpointOverride := getEnvOrFallback(envAWSEndpointOverride, "")
 		provider = testProvider{

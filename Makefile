@@ -143,9 +143,9 @@ kind-up: $(KIND)
 kind-down: $(KIND)
 	@kind delete cluster --name etcdbr-e2e
 
-.PHONY: deploy-localstack
-deploy-localstack: $(KUBECTL)
-	@./hack/deploy-localstack.sh $(KUBECONFIG)
+.PHONY: deploy-aws-emulator
+deploy-aws-emulator: $(KUBECTL) $(KIND)
+	@./hack/deploy-aws-emulator.sh $(KUBECONFIG)
 
 .PHONY: deploy-fakegcs
 deploy-fakegcs: $(KUBECTL)

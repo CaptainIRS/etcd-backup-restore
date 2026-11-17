@@ -10,26 +10,24 @@ if [[ -z "${AWS_ACCESS_KEY_ID:-}" || -z "${AWS_SECRET_ACCESS_KEY:-}" || -z "${AW
     echo "Error: Partial AWS environment variables set. Please set all or none of AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_DEFAULT_REGION."
     exit 1
   fi
-  # Use Localstack if none of the AWS environment variables are set
-  export AWS_ENDPOINT_OVERRIDE="http://localstack.default:4566"
-  export AWS_ENDPOINT_URL_S3="http://localhost:4566"
-  export AWS_ACCESS_KEY_ID="ACCESSKEYAWSUSER"
-  export AWS_SECRET_ACCESS_KEY="sEcreTKey"
-  export AWS_DEFAULT_REGION="us-east-2"
-  export USE_LOCALSTACK=true
-else
-  export USE_LOCALSTACK=false
 fi
 
 export AWS_APPLICATION_CREDENTIALS="/tmp/.aws"
 
 rm -rf /tmp/.aws
 mkdir -p /tmp/.aws
+
+if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]]; then
+  export AWS_ENDPOINT_OVERRIDE="https://aws-emulator.default:9297"
+  export AWS_ENDPOINT_URL_S3="https://localhost:9297"
+  export EMULATOR_URL="https://localhost:9297"
+  export AWS_ACCESS_KEY_ID="ACCESSKEYAWSUSER"
+  export AWS_SECRET_ACCESS_KEY="sEcreTKey"
+  export AWS_DEFAULT_REGION="us-east-2"
+  echo -n "true" > "${AWS_APPLICATION_CREDENTIALS}/s3ForcePathStyle"
+  echo -n "true" > "${AWS_APPLICATION_CREDENTIALS}/insecureSkipVerify"
+fi
+
 echo -n "${AWS_ACCESS_KEY_ID}"     > "${AWS_APPLICATION_CREDENTIALS}/accessKeyID"
 echo -n "${AWS_SECRET_ACCESS_KEY}" > "${AWS_APPLICATION_CREDENTIALS}/secretAccessKey"
 echo -n "${AWS_DEFAULT_REGION}"    > "${AWS_APPLICATION_CREDENTIALS}/region"
-
-if [[ "${USE_LOCALSTACK}" == "true" ]]; then
-  export EMULATOR_URL="http://localhost:4566"
-  echo -n "true"                     > "${AWS_APPLICATION_CREDENTIALS}/s3ForcePathStyle"
-fi

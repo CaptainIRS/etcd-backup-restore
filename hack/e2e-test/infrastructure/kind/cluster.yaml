@@ -4,10 +4,9 @@ nodes:
 - role: control-plane
   image: kindest/node:v1.32.2
   extraPortMappings:
-  # For localstack
-    # port-forward the 4566 port from host machine to localstack svc running inside the kind cluster
-  - containerPort: 4566
-    hostPort: 4566
+  # For AWS Emulator
+  - containerPort: 9297
+    hostPort: 9297
     listenAddress: "127.0.0.1"
     protocol: TCP
   # For Fake-GCS
